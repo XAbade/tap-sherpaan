@@ -66,7 +66,6 @@ class PaginatedStream(SherpaStream):
         )
         # Initialize SherpaClient for SOAP requests
         self.client = SherpaClient(
-            wsdl_url=self.config["wsdl_url"],
             tap=self._tap,
         )
 
