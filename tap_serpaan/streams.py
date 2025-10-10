@@ -21,7 +21,6 @@ class SherpaStream(Stream):
         """Initialize the stream."""
         super().__init__(*args, **kwargs)
         self.client = SherpaClient(
-            wsdl_url=self.config["wsdl_url"],
             tap=self._tap,
         )
 
@@ -233,5 +232,3 @@ class PurchaseInfoStream(SherpaStream):
         purchase_info = self.client.get_purchase_info(purchase_number)
         # Return the response directly - let the schema handle the structure
         yield purchase_info
-
-
