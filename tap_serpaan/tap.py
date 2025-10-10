@@ -12,15 +12,14 @@ from tap_serpaan import streams
 class TapSerpaan(Tap):
     """Sherpa tap class."""
 
-    name = "tap-sherpa"
+    name = "tap-serpaan"
 
     config_jsonschema = th.PropertiesList(
         th.Property(
-            "wsdl_url",
+            "shop_id",
             th.StringType,
             required=True,
-            description="The WSDL URL for the Sherpa SOAP service",
-            default="https://sherpaservices-tst.sherpacloud.eu/214/Sherpa.asmx?wsdl",
+            description="The shop ID for the Sherpa service (used to construct WSDL URL)",
         ),
         th.Property(
             "security_code",
