@@ -25,18 +25,19 @@ class SherpaClient:
 
     def __init__(
         self,
-        wsdl_url: str,
         tap: "TapSerpaan",
         timeout: int = 30,
     ) -> None:
         """Initialize the Sherpa SOAP client.
 
         Args:
-            wsdl_url: The WSDL URL for the Sherpa SOAP service
             tap: The tap instance to get configuration from
             timeout: Request timeout in seconds
         """
-        self.wsdl_url = wsdl_url
+        # Construct WSDL URL from shop_id
+        shop_id = tap.config["shop_id"]
+        self.wsdl_url = f"https://sherpaservices-tst.sherpacloud.eu/{shop_id}/Sherpa.asmx?wsdl"
+        
         session = Session()
         # Set default Content-Type header
         session.headers.update({
@@ -45,7 +46,7 @@ class SherpaClient:
         transport = Transport(session=session, timeout=timeout)
         settings = Settings(strict=False)
         self.client = Client(
-            wsdl_url,
+            self.wsdl_url,
             transport=transport,
             settings=settings,
         )
