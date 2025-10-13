@@ -6,8 +6,6 @@ from singer_sdk import typing as th  # JSON schema typing helpers
 from tap_sherpaan import streams
 import click
 
-print("DEBUG - Tap version 0.0.5")
-
 class TapSherpaan(Tap):
     """Sherpa tap class."""
     name = "tap-sherpaan"
@@ -71,12 +69,10 @@ class TapSherpaan(Tap):
 
     @classmethod
     def cli(cls, *args, **kwargs):
-        print("DEBUG - cli")
         """Handle command line execution."""
         # Add a click option to accept and ignore the --properties argument
         @click.option("--properties", help="DEPRECATED. Path to a properties JSON file.")
         def cli_func(*args, **kwargs):
-            print("DEBUG - cli_func")
             # Pop the 'properties' kwarg to avoid passing it to the parent class
             kwargs.pop("properties", None)
             # Call the parent class's CLI method with the remaining arguments
