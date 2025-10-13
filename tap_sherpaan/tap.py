@@ -6,6 +6,8 @@ from singer_sdk import typing as th  # JSON schema typing helpers
 from tap_sherpaan import streams
 import click
 
+raise ValueError("PROVING THAT THE LATEST CODE IS BEING DEPLOYED!")
+
 class TapSherpaan(Tap):
     """Sherpa tap class."""
     name = "tap-sherpaan"
