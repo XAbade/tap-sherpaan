@@ -1,5 +1,5 @@
 [project]
-name = "tap-serpaan"
+name = "tap-sherpaan"
 version = "0.0.1"
 description = "Singer tap for Sherpa, built with the Meltano Singer SDK."
 readme = "README.md"
@@ -32,7 +32,7 @@ s3 = [
 
 [project.scripts]
 # CLI declaration
-tap-serpaan = 'tap_serpaan.tap:TapSerpaan.cli'
+tap-sherpaan = 'tap_sherpaan.tap:TapSherpaan.cli'
 
 [dependency-groups]
 dev = [
