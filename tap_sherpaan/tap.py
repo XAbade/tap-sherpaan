@@ -1,17 +1,13 @@
 """Sherpa tap class."""
-
 from __future__ import annotations
 from typing import Optional, Iterable, Dict, Any, List
-
 from singer_sdk import Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
-
 from tap_sherpaan import streams
-
+import click
 
 class TapSherpaan(Tap):
     """Sherpa tap class."""
-
     name = "tap-sherpaan"
 
     config_jsonschema = th.PropertiesList(
@@ -69,6 +65,21 @@ class TapSherpaan(Tap):
             description="Initial tokens for each stream",
         ),
     ).to_dict()
+
+
+    @classmethod
+    def cli(cls, *args, **kwargs):
+        """Handle command line execution."""
+        # Add a click option to accept and ignore the --properties argument
+        @click.option("--properties", help="DEPRECATED. Path to a properties JSON file.")
+        def cli_func(*args, **kwargs):
+            # Pop the 'properties' kwarg to avoid passing it to the parent class
+            kwargs.pop("properties", None)
+            # Call the parent class's CLI method with the remaining arguments
+            super(TapSherpaan, cls).cli(*args, **kwargs)
+
+        cli_func(*args, **kwargs)
+
 
     def discover_streams(self) -> List[streams.SherpaStream]:
         """Return a list of discovered streams.
