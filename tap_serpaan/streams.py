@@ -9,7 +9,7 @@ from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.streams import Stream
 from singer_sdk.helpers._state import increment_state
 
-from tap_serpaan.client import SherpaClient
+from tap_sherpaan.client import SherpaClient
 
 # TODO: Delete this is if not using json files for schema definition
 SCHEMAS_DIR = resources.files(__package__) / "schemas"
@@ -21,6 +21,7 @@ class SherpaStream(Stream):
         """Initialize the stream."""
         super().__init__(*args, **kwargs)
         self.client = SherpaClient(
+            shop_id=self.config["shop_id"],
             tap=self._tap,
         )
 
@@ -33,7 +34,7 @@ class SherpaStream(Stream):
 
 
 # Import PaginatedStream after SherpaStream is defined to avoid circular imports
-from tap_serpaan.pagination import PaginatedStream, PaginationMode
+from tap_sherpaan.pagination import PaginatedStream, PaginationMode
 
 
 class ChangedItemsInformationStream(PaginatedStream):
@@ -232,3 +233,4 @@ class PurchaseInfoStream(SherpaStream):
         purchase_info = self.client.get_purchase_info(purchase_number)
         # Return the response directly - let the schema handle the structure
         yield purchase_info
+        
