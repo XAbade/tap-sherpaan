@@ -6,8 +6,8 @@ import time
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from singer_sdk import typing as th
-from tap_serpaan.streams import SherpaStream
-from tap_serpaan.client import SherpaClient
+from tap_sherpaan.streams import SherpaStream
+from tap_sherpaan.client import SherpaClient
 
 
 class PaginationMode(str, Enum):
@@ -66,6 +66,7 @@ class PaginatedStream(SherpaStream):
         )
         # Initialize SherpaClient for SOAP requests
         self.client = SherpaClient(
+            shop_id=self.config["shop_id"],
             tap=self._tap,
         )
 
