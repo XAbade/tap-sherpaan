@@ -6,20 +6,20 @@ from typing import Optional, Iterable, Dict, Any, List
 from singer_sdk import Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
 
-from tap_serpaan import streams
+from tap_sherpaan import streams
 
 
-class TapSerpaan(Tap):
+class TapSherpaan(Tap):
     """Sherpa tap class."""
 
-    name = "tap-serpaan"
+    name = "tap-sherpaan"
 
     config_jsonschema = th.PropertiesList(
         th.Property(
             "shop_id",
             th.StringType,
             required=True,
-            description="The shop ID for the Sherpa service (used to construct WSDL URL)",
+            description="The shop ID for the Sherpa SOAP service",
         ),
         th.Property(
             "security_code",
@@ -89,4 +89,4 @@ class TapSerpaan(Tap):
 
 
 if __name__ == "__main__":
-    TapSerpaan.cli()
+    TapSherpaan.cli()
