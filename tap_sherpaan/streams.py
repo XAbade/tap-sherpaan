@@ -46,9 +46,8 @@ class ChangedItemsInformationStream(PaginatedStream):
     schema = th.PropertiesList(
         # Basic item information
         th.Property("ItemCode", th.StringType),
-        th.Property("Token", th.StringType),
         th.Property("ItemStatus", th.StringType),
-        
+        th.Property("Token", th.StringType),
         # General item details
         th.Property("ItemType", th.StringType),
         th.Property("Description", th.StringType),
@@ -75,24 +74,18 @@ class ChangedItemsInformationStream(PaginatedStream):
         th.Property("StockInAllWarehouses", th.IntegerType),
         th.Property("ReservedInAllWarehouses", th.IntegerType),
         th.Property("AvailableStockInAllWarehouses", th.IntegerType),
-        
-            # EAN codes (stored as JSON string)
-            th.Property("EanCodes", th.StringType),
-            
-            # Custom fields (stored as JSON string)
-            th.Property("CustomFields", th.StringType),
-            
-            # Warehouse information (stored as JSON string)
-            th.Property("Warehouses", th.StringType),
-            
-            # Supplier information (stored as JSON string)
-            th.Property("ItemSuppliers", th.StringType),
-            
-            # Assembly information (stored as JSON string)
-            th.Property("ItemAssemblies", th.StringType),
-            
-            # Purchase information (stored as JSON string)
-            th.Property("ItemPurchases", th.StringType)
+        # EAN codes (stored as JSON string)
+        th.Property("EanCodes", th.StringType),
+        # Custom fields (stored as JSON string)
+        th.Property("CustomFields", th.StringType),
+        # Warehouse information (stored as JSON string)
+        th.Property("Warehouses", th.StringType),
+        # Supplier information (stored as JSON string)
+        th.Property("ItemSuppliers", th.StringType),
+        # Assembly information (stored as JSON string)
+        th.Property("ItemAssemblies", th.StringType),
+        # Purchase information (stored as JSON string)
+        th.Property("ItemPurchases", th.StringType)
     ).to_dict()
 
     def get_changed_items_information(self, token: int, count: int = 200) -> str:
@@ -130,19 +123,19 @@ class ChangedStockStream(PaginatedStream):
     response_path = "ItemStockToken"
     schema = th.PropertiesList(
         th.Property("ItemCode", th.StringType),
-        th.Property("Available", th.IntegerType),
-        th.Property("Stock", th.IntegerType),
-        th.Property("Reserved", th.IntegerType),
+        th.Property("Available", th.StringType),
+        th.Property("Stock", th.StringType),
+        th.Property("Reserved", th.StringType),
         th.Property("ItemStatus", th.StringType),
-        th.Property("Token", th.StringType),
         th.Property("ExpectedDate", th.DateTimeType),
-        th.Property("QtyWaitingToReceive", th.IntegerType),
+        th.Property("QtyWaitingToReceive", th.StringType),
         th.Property("FirstExpectedDate", th.DateTimeType),
-        th.Property("FirstExpectedQtyWaitingToReceive", th.IntegerType),
+        th.Property("FirstExpectedQtyWaitingToReceive", th.StringType),
         th.Property("LastModified", th.DateTimeType),
         th.Property("AvgPurchasePrice", th.NumberType),
         th.Property("WarehouseCode", th.StringType),
-        th.Property("CostPrice", th.NumberType)
+        th.Property("CostPrice", th.NumberType),
+        th.Property("Token", th.StringType)
     ).to_dict()
 
     def get_changed_stock(self, token: int, maxResult: int = 200) -> str:
@@ -171,18 +164,18 @@ class ChangedSuppliersStream(PaginatedStream):
     response_path = "ClientCodeToken"
     schema = th.PropertiesList(
         th.Property("ClientCode", th.StringType),
-        th.Property("Token", th.StringType),
-        th.Property("Active", th.StringType)
+        th.Property("Active", th.StringType),
+        th.Property("Token", th.StringType)
     ).to_dict()
 
-    def get_changed_suppliers(self, token: int, maxResult: int = 200) -> str:
+    def get_changed_suppliers(self, token: int, count: int = 200) -> str:
         return f"""<?xml version="1.0" encoding="utf-8"?>
 <soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
   <soap12:Body>
     <tns:ChangedSuppliers xmlns:tns="http://sherpa.sherpaan.nl/">
       <tns:securityCode>{self.config["security_code"]}</tns:securityCode>
       <tns:token>{token}</tns:token>
-      <tns:maxResult>{maxResult}</tns:maxResult>
+      <tns:count>{count}</tns:count>
     </tns:ChangedSuppliers>
   </soap12:Body>
 </soap12:Envelope>"""
@@ -198,31 +191,39 @@ class ChangedSuppliersStream(PaginatedStream):
             "client_code": record["ClientCode"],
         }
 
-class SupplierInfoStream(SherpaStream):
+class SupplierInfoStream(PaginatedStream):
     # Get supplier info for each supplier
     name = "supplier_info"
     parent_stream_type = ChangedSuppliersStream
     primary_keys = ["ClientCode"]
+    response_path = "SupplierInfoResult"
     schema = th.PropertiesList(
-        th.Property("ClientCode", th.StringType),
-        th.Property("ClientName", th.StringType),
-        th.Property("ClientDescription", th.StringType),
-        th.Property("ClientStatus", th.StringType),
-        th.Property("ClientType", th.StringType),
-        th.Property("ClientAddress", th.ObjectType()),
-        th.Property("ClientContact", th.ObjectType()),
-        th.Property("ClientBankAccount", th.ObjectType()),
-        th.Property("ClientTaxInfo", th.ObjectType()),
-        th.Property("ClientCustomFields", th.ObjectType())
+        th.Property("SupplierCode", th.StringType),
+        th.Property("BillingAddress", th.StringType),
+        th.Property("ShipmentAddess", th.StringType),
+        th.Property("Remarks", th.StringType),
+        th.Property("SupplierSettings", th.StringType),
+        th.Property("CustomFields", th.StringType),
+        th.Property("Token", th.StringType)
     ).to_dict()
+
+    def get_supplier_info(self, token: int = 0, **kwargs) -> str:
+        return f"""<?xml version="1.0" encoding="utf-8"?>
+<soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+  <soap12:Body>
+    <tns:SupplierInfo xmlns:tns="http://sherpa.sherpaan.nl/">
+      <tns:securityCode>{self.config["security_code"]}</tns:securityCode>
+      <tns:supplierCode>{self._current_client_code}</tns:supplierCode>
+    </tns:SupplierInfo>
+  </soap12:Body>
+</soap12:Envelope>"""
 
     def get_records(self, context: Optional[dict] = None) -> Iterable[dict]:
         """Get supplier info using the client_code from parent context."""
-        client_code = context["client_code"]
-        # Get detailed supplier info for this client code
-        supplier_info = self.client.get_supplier_info(client_code)
-        # Return the response directly - let the schema handle the structure
-        yield supplier_info
+        # Store client_code in instance variable so get_supplier_info can access it
+        self._current_client_code = context["client_code"]
+        # Use the same approach as other streams - this will automatically process the response
+        yield from self.get_records_with_custom_client_method("get_supplier_info")
 
 
 class ChangedItemSuppliersWithDefaultsStream(PaginatedStream):
