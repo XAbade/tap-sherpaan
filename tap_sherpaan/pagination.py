@@ -120,14 +120,44 @@ class PaginatedStream(SherpaStream):
             """Recursively flatten nested dictionaries."""
             items = []
             for k, v in d.items():
-                new_key = f"{parent_key}{sep}{k}" if parent_key else k
+                # Skip XML namespace attributes
+                if k.startswith('@'):
+                    continue
+                # For General section, don't add prefix to match schema field names
+                if parent_key == 'General':
+                    new_key = k
+                else:
+                    new_key = f"{parent_key}{sep}{k}" if parent_key else k
+                
                 if isinstance(v, dict):
-                    # Always convert nested objects to JSON strings
-                    items.append((new_key, json.dumps(clean_xml_artifacts(v))))
+                    # Check if this dictionary only contains @xsi:nil attributes
+                    non_xsi_keys = [k for k in v.keys() if not k.startswith('@')]
+                    if not non_xsi_keys:
+                        # This is a xsi:nil field, convert to null
+                        items.append((new_key, None))
+                    elif k == 'General':
+                        # General section should always be flattened, regardless of xsi:nil fields
+                        # This ensures consistent behavior across all streams
+                        flattened = flatten_dict(v, new_key, sep)
+                        items.extend(flattened.items())
+                    else:
+                        # Check if this is a simple dictionary (all values are simple types)
+                        has_nested_objects = any(
+                            isinstance(val, (dict, list))
+                            for val in v.values()
+                        )
+                        if has_nested_objects:
+                            # Complex nested objects become JSON strings
+                            items.append((new_key, json.dumps(clean_xml_artifacts(v))))
+                        else:
+                            # Simple dictionaries get flattened
+                            flattened = flatten_dict(v, new_key, sep)
+                            items.extend(flattened.items())
                 elif isinstance(v, list):
-                    # Convert lists to JSON strings
+                    # All lists become JSON strings
                     items.append((new_key, json.dumps(clean_xml_artifacts(v))))
                 else:
+                    # Simple values stay as-is
                     items.append((new_key, v))
             return dict(items)
         
@@ -137,19 +167,9 @@ class PaginatedStream(SherpaStream):
         # Process all fields in the item dynamically
         for key, value in item.items():
             if isinstance(value, dict):
-                # Special handling for ItemInformation - extract fields from within it
-                if key == "ItemInformation":
-                    # Extract fields from ItemInformation and flatten them
-                    for sub_key, sub_value in value.items():
-                        if isinstance(sub_value, dict):
-                            processed[sub_key] = json.dumps(clean_xml_artifacts(sub_value))
-                        elif isinstance(sub_value, list):
-                            processed[sub_key] = json.dumps(clean_xml_artifacts(sub_value))
-                        else:
-                            processed[sub_key] = sub_value
-                else:
-                    # Convert other nested objects to JSON strings
-                    processed[key] = json.dumps(clean_xml_artifacts(value))
+                # Use flatten_dict to handle nested objects intelligently
+                flattened = flatten_dict(value)
+                processed.update(flattened)
             elif isinstance(value, list):
                 # Convert lists to JSON strings
                 processed[key] = json.dumps(clean_xml_artifacts(value))
