@@ -39,9 +39,13 @@ class SherpaClient:
         self.shop_id = shop_id
         self.wsdl_url = f"https://sherpaservices-tst.sherpacloud.eu/{shop_id}/Sherpa.asmx?wsdl"
         session = Session()
-        # Set default Content-Type header
+        # Set default headers (Postman-style)
         session.headers.update({
-            "Content-Type": "application/soap+xml; charset=utf-8"
+            "Content-Type": "text/xml; charset=utf-8",
+            "User-Agent": "PostmanRuntime/7.32.3",
+            "Accept": "*/*",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive"
         })
         transport = Transport(session=session, timeout=timeout)
         settings = Settings(strict=False)
@@ -124,9 +128,7 @@ class SherpaClient:
             Response from the SOAP service
         """
         # Update headers for this specific request
-        original_content_type = self.session.headers.get("Content-Type")
         self.session.headers.update({
-            "Content-Type": "text/xml; charset=utf-8",
             "SOAPAction": f'"http://sherpa.sherpaan.nl/{service_name}"'
         })
 
@@ -139,90 +141,20 @@ class SherpaClient:
             )
             response.raise_for_status()
             
-            # Parse the response using zeep
-            from zeep import Client
-            from zeep.helpers import serialize_object
+            # Simple response parsing - just return the raw response
+            # The pagination logic will handle the parsing
+            return {"raw_response": response.text}
             
-            # Create a temporary client to parse the response
-            temp_client = Client(self.wsdl_url)
-            result = temp_client.service[service_name](
-                securityCode=self.tap.config["security_code"]
-            )
-            
-            return serialize_object(result)
-            
-        finally:
-            # Restore original headers
-            if original_content_type:
-                self.session.headers["Content-Type"] = original_content_type
-            else:
-                self.session.headers.pop("Content-Type", None)
+        except Exception as e:
+            self.tap.logger.error(f"Error in call_custom_soap_service: {e}")
+            raise
 
-    def get_changed_items(self, token: int) -> list:
-        """Get changed items from the API.
-
-        Args:
-            token: The token to use for pagination
-
-        Returns:
-            List of changed items
-        """
-        result = self.call_service("ChangedItems", token=token)
-        if not result or "ChangedItemsResult" not in result:
-            return []
-            
-        response = result["ChangedItemsResult"]
-        if not response or "ResponseValue" not in response:
-            return []
-            
-        items = response["ResponseValue"].get("ItemCodeToken", [])
-        if not isinstance(items, list):
-            items = [items]
-            
-        return items
-
-    def get_changed_items_information(self, token: int, count: int = 100) -> dict:
-        """Get changed items information from the API with custom SOAP request.
-
-        Args:
-            token: The token to use for pagination
-            count: Number of items to fetch per request
-
-        Returns:
-            Response from the ChangedItemsInformation service
-        """
-        # Create custom SOAP envelope with the specific format
-        soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
-<soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
-  <soap12:Body>
-    <tns:ChangedItemsInformation xmlns:tns="http://sherpa.sherpaan.nl/">
-      <tns:securityCode>{self.tap.config["security_code"]}</tns:securityCode>
-      <tns:token>{token}</tns:token>
-      <tns:count>{count}</tns:count>
-      <tns:itemInformationTypes>
-        <tns:ItemInformationType>General</tns:ItemInformationType>
-        <tns:ItemInformationType>EanCode</tns:ItemInformationType>
-        <tns:ItemInformationType>CustomFields</tns:ItemInformationType>
-        <tns:ItemInformationType>Warehouses</tns:ItemInformationType>
-        <tns:ItemInformationType>ItemSuppliers</tns:ItemInformationType>
-        <tns:ItemInformationType>ItemAssemblies</tns:ItemInformationType>
-        <tns:ItemInformationType>ItemPurchases</tns:ItemInformationType>
-      </tns:itemInformationTypes>
-    </tns:ChangedItemsInformation>
-  </soap12:Body>
-</soap12:Envelope>"""
-
-        return self.call_custom_soap_service("ChangedItemsInformation", soap_envelope)
-
-    def get_changed_orders_information(self, token: int, count: int = 100) -> dict:
+    def get_changed_orders_information(self, token: int, count: int = 200) -> dict:
         """Get changed orders information from the API with custom SOAP request.
 
         Args:
             token: The token to use for pagination
             count: Number of orders to fetch per request
-
-        Returns:
-            Response from the ChangedOrdersInformation service
         """
         # Create custom SOAP envelope with the specific format
         soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
@@ -247,9 +179,6 @@ class SherpaClient:
 
         Args:
             supplier_code: The supplier code to get information for
-
-        Returns:
-            Response from the SupplierInfo service
         """
         # Create custom SOAP envelope with the specific format
         soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
