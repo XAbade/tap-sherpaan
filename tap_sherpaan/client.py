@@ -174,25 +174,6 @@ class SherpaClient:
 
         return self.call_custom_soap_service("ChangedOrdersInformation", soap_envelope)
 
-    def get_supplier_info(self, supplier_code: str) -> dict:
-        """Get supplier information from the API.
-
-        Args:
-            supplier_code: The supplier code to get information for
-        """
-        # Create custom SOAP envelope with the specific format
-        soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
-<soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
-  <soap12:Body>
-    <tns:SupplierInfo xmlns:tns="http://sherpa.sherpaan.nl/">
-      <tns:securityCode>{self.tap.config["security_code"]}</tns:securityCode>
-      <tns:supplierCode>{supplier_code}</tns:supplierCode>
-    </tns:SupplierInfo>
-  </soap12:Body>
-</soap12:Envelope>"""
-
-        return self.call_custom_soap_service("SupplierInfo", soap_envelope)
-
     def get_purchase_info(self, purchase_number: str) -> dict:
         """Get purchase information from the API.
 
