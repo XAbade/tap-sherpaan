@@ -113,15 +113,8 @@ class PaginatedStream(SherpaStream):
             for k, v in d.items():
                 new_key = f"{parent_key}{sep}{k}" if parent_key else k
                 if isinstance(v, dict):
-                    # Check if this dict contains only simple key-value pairs (no nested objects/lists)
-                    has_complex_values = any(isinstance(val, (dict, list)) for val in v.values())
-                    
-                    if has_complex_values:
-                        # Complex nested object - convert to JSON string
-                        items.append((new_key, json.dumps(clean_xml_artifacts(v))))
-                    else:
-                        # Simple dict with only primitive values - flatten it
-                        items.extend(flatten_dict(v, new_key, sep=sep).items())
+                    # Always convert nested objects to JSON strings
+                    items.append((new_key, json.dumps(clean_xml_artifacts(v))))
                 elif isinstance(v, list):
                     # Convert lists to JSON strings
                     items.append((new_key, json.dumps(clean_xml_artifacts(v))))
@@ -135,9 +128,8 @@ class PaginatedStream(SherpaStream):
         # Process all fields in the item dynamically
         for key, value in item.items():
             if isinstance(value, dict):
-                # If it's a nested object, flatten it
-                flattened = flatten_dict(value)
-                processed.update(flattened)
+                # Convert nested objects to JSON strings
+                processed[key] = json.dumps(clean_xml_artifacts(value))
             elif isinstance(value, list):
                 # Convert lists to JSON strings
                 processed[key] = json.dumps(clean_xml_artifacts(value))
@@ -550,7 +542,7 @@ class PaginatedStream(SherpaStream):
                     self.logger.info(f"[{self.name}] Found {len(items)} items in '{items_key}'")
                 else:
                     # Try to find the items in common patterns
-                    possible_keys = ["ItemCodeTokenItemInformation", "ItemCodeTokenStock", "ItemCodeTokenSupplier"]
+                    possible_keys = ["ItemCodeTokenItemInformation", "ItemCodeTokenStock", "ItemCodeTokenSupplier", "ResponseValue"]
                     items = []
                     for key in possible_keys:
                         if key in result:
@@ -561,8 +553,13 @@ class PaginatedStream(SherpaStream):
                             break
                     
                     if not items:
-                        self.logger.error(f"[{self.name}] Could not find items in result")
-                        break
+                        # Check if result itself is a single item (for streams like SupplierInfo)
+                        if isinstance(result, dict) and any(key in result for key in ["SupplierCode", "ItemCode", "ClientCode"]):
+                            items = [result]
+                            self.logger.info(f"[{self.name}] Using result as single item")
+                        else:
+                            self.logger.error(f"[{self.name}] Could not find items in result")
+                            break
             elif isinstance(result, list):
                 # If result is already a list, use it directly
                 items = result
