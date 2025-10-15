@@ -56,11 +56,12 @@ class TapSherpaan(Tap):
         th.Property(
             "stream_tokens",
             th.ObjectType(
-                th.Property("changed_items", th.IntegerType),
-                th.Property("changed_orders", th.IntegerType),
-                th.Property("changed_suppliers", th.IntegerType),
-                th.Property("changed_item_suppliers", th.IntegerType),
+                th.Property("changed_items_information", th.IntegerType),
                 th.Property("changed_stock", th.IntegerType),
+                th.Property("changed_suppliers", th.IntegerType),
+                th.Property("changed_item_suppliers_with_defaults", th.IntegerType),
+                th.Property("changed_orders_information", th.IntegerType),
+                th.Property("changed_purchases", th.IntegerType)
             ),
             description="Initial tokens for each stream",
         ),
