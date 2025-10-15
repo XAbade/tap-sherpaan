@@ -95,12 +95,21 @@ class PaginatedStream(SherpaStream):
         def clean_xml_artifacts(obj):
             """Recursively clean XML artifacts from the object."""
             if isinstance(obj, dict):
+                # If it's an empty dict, return null
+                if not obj:
+                    return None
                 cleaned = {}
                 for key, value in obj.items():
                     # Skip XML namespace attributes
                     if key.startswith('@'):
                         continue
-                    cleaned[key] = clean_xml_artifacts(value)
+                    cleaned_value = clean_xml_artifacts(value)
+                    # Only add non-null values to avoid empty dicts
+                    if cleaned_value is not None:
+                        cleaned[key] = cleaned_value
+                # If all values were null, return null
+                if not cleaned:
+                    return None
                 return cleaned
             elif isinstance(obj, list):
                 return [clean_xml_artifacts(item) for item in obj]
@@ -128,8 +137,19 @@ class PaginatedStream(SherpaStream):
         # Process all fields in the item dynamically
         for key, value in item.items():
             if isinstance(value, dict):
-                # Convert nested objects to JSON strings
-                processed[key] = json.dumps(clean_xml_artifacts(value))
+                # Special handling for ItemInformation - extract fields from within it
+                if key == "ItemInformation":
+                    # Extract fields from ItemInformation and flatten them
+                    for sub_key, sub_value in value.items():
+                        if isinstance(sub_value, dict):
+                            processed[sub_key] = json.dumps(clean_xml_artifacts(sub_value))
+                        elif isinstance(sub_value, list):
+                            processed[sub_key] = json.dumps(clean_xml_artifacts(sub_value))
+                        else:
+                            processed[sub_key] = sub_value
+                else:
+                    # Convert other nested objects to JSON strings
+                    processed[key] = json.dumps(clean_xml_artifacts(value))
             elif isinstance(value, list):
                 # Convert lists to JSON strings
                 processed[key] = json.dumps(clean_xml_artifacts(value))
