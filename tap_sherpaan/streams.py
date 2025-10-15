@@ -42,7 +42,7 @@ class ChangedItemsInformationStream(PaginatedStream):
     name = "changed_items_information"
     primary_keys = ["ItemCode"]
     replication_key = "Token"
-    response_path = "ItemInformation"
+    response_path = "ItemCodeTokenItemInformation"
     schema = th.PropertiesList(
         # Basic item information
         th.Property("ItemCode", th.StringType),
@@ -75,7 +75,7 @@ class ChangedItemsInformationStream(PaginatedStream):
         th.Property("ReservedInAllWarehouses", th.StringType),
         th.Property("AvailableStockInAllWarehouses", th.StringType),
         # EAN codes (stored as JSON string)
-        th.Property("EanCodes", th.StringType),
+        th.Property("EanCode", th.StringType),
         # Custom fields (stored as JSON string)
         th.Property("CustomFields", th.StringType),
         # Warehouse information (stored as JSON string)
@@ -196,15 +196,32 @@ class SupplierInfoStream(PaginatedStream):
     name = "supplier_info"
     parent_stream_type = ChangedSuppliersStream
     primary_keys = ["ClientCode"]
-    response_path = "SupplierInfoResult"
+    response_path = "ResponseValue"
     schema = th.PropertiesList(
         th.Property("SupplierCode", th.StringType),
-        th.Property("BillingAddress", th.StringType),
-        th.Property("ShipmentAddess", th.StringType),
+        th.Property("Token", th.StringType),
         th.Property("Remarks", th.StringType),
-        th.Property("SupplierSettings", th.StringType),
         th.Property("CustomFields", th.StringType),
-        th.Property("Token", th.StringType)
+        # Address fields (flattened from BillingAddress/ShipmentAddess)
+        th.Property("AddressType", th.StringType),
+        th.Property("Gender", th.StringType),
+        th.Property("Name", th.StringType),
+        th.Property("Company", th.StringType),
+        th.Property("Street", th.StringType),
+        th.Property("HouseNumber", th.StringType),
+        th.Property("PostalCode", th.StringType),
+        th.Property("City", th.StringType),
+        th.Property("CountryCode", th.StringType),
+        th.Property("CountryName", th.StringType),
+        th.Property("AddressLine1", th.StringType),
+        th.Property("AddressLine2", th.StringType),
+        th.Property("AddressLine3", th.StringType),
+        th.Property("EmailAddressIsInvalid", th.StringType),
+        th.Property("AllowMailing", th.StringType),
+        # Supplier settings fields (flattened from SupplierSettings)
+        th.Property("OrderPeriod", th.StringType),
+        th.Property("DeliveryPeriod", th.StringType),
+        th.Property("AutoPreferredItemSupplier", th.StringType)
     ).to_dict()
 
     def get_supplier_info(self, token: int = 0, **kwargs) -> str:
@@ -231,17 +248,25 @@ class ChangedItemSuppliersWithDefaultsStream(PaginatedStream):
     name = "changed_item_suppliers_with_defaults"
     primary_keys = ["ItemCode", "ClientCode"]
     replication_key = "Token"
-    response_path = "ItemSupplierToken"
+    response_path = "SupplierItemCodeToken"
     schema = th.PropertiesList(
+        th.Property("SupplierCode", th.StringType),
+        th.Property("SupplierItemCode", th.StringType),
         th.Property("ItemCode", th.StringType),
-        th.Property("ClientCode", th.StringType),
+        th.Property("SupplierDescription", th.StringType),
+        th.Property("SupplierStock", th.StringType),
+        th.Property("SupplierPrice", th.StringType),
+        th.Property("OrderPeriod", th.StringType),
+        th.Property("DeliveryPeriod", th.StringType),
+        th.Property("Preferred", th.StringType),
         th.Property("Token", th.StringType),
-        th.Property("DefaultSupplier", th.StringType),
-        th.Property("PurchasePrice", th.StringType),
-        th.Property("Currency", th.StringType),
-        th.Property("LeadTime", th.StringType),
-        th.Property("MinOrderQty", th.StringType),
-        th.Property("MaxOrderQty", th.StringType)
+        th.Property("AvailableFrom", th.StringType),
+        th.Property("SupplierItemStatus", th.StringType),
+        th.Property("VatCode", th.StringType),
+        th.Property("LastModified", th.StringType),
+        th.Property("MinPurchaseQty", th.StringType),
+        th.Property("SupplierPurchaseQty", th.StringType),
+        th.Property("SupplierPurchaseQtyMultiplier", th.StringType)
     ).to_dict()
 
     def get_changed_item_suppliers_with_defaults(self, token: int, count: int = 200) -> str:
@@ -266,19 +291,33 @@ class ChangedOrdersInformationStream(PaginatedStream):
     name = "changed_orders_information"
     primary_keys = ["OrderCode"]
     replication_key = "Token"
-    response_path = "OrderInformation"
+    response_path = "OrderNumberTokenOrderInformation"
     schema = th.PropertiesList(
-        th.Property("OrderCode", th.StringType),
-        th.Property("Token", th.StringType),
+        # Top-level fields
         th.Property("OrderNumber", th.StringType),
-        th.Property("OrderDate", th.DateTimeType),
+        th.Property("Token", th.StringType),
         th.Property("OrderStatus", th.StringType),
-        th.Property("CustomerCode", th.StringType),
-        th.Property("CustomerName", th.StringType),
-        th.Property("OrderLines", th.ArrayType(th.ObjectType())),
-        th.Property("TotalAmount", th.StringType),
-        th.Property("Currency", th.StringType),
-        th.Property("WarehouseCode", th.StringType)
+        # General section fields
+        th.Property("OrderDate", th.DateTimeType),
+        th.Property("InvoiceDate", th.DateTimeType),
+        th.Property("SendInvoiceByEmail", th.BooleanType),
+        th.Property("NumberOfColli", th.StringType),
+        th.Property("Priority", th.BooleanType),
+        th.Property("ShippingDate", th.DateTimeType),
+        th.Property("PricesIncl", th.BooleanType),
+        th.Property("OrderAmountInclVAT", th.StringType),
+        th.Property("OrderAmountInclVATInclBackOrderItems", th.StringType),
+        th.Property("Paid", th.StringType),
+        th.Property("ElectronicPaid", th.StringType),
+        th.Property("AmountDue", th.StringType),
+        th.Property("Margin", th.StringType),
+        th.Property("WarehouseCode", th.StringType),
+        th.Property("OrderWarning", th.StringType),
+        th.Property("PaymentMethodCode", th.StringType),
+        th.Property("ParcelServiceCode", th.StringType),
+        th.Property("ParcelTypeCode", th.StringType),
+        # Complex nested objects (stored as JSON strings)
+        th.Property("OrderLines", th.StringType)
     ).to_dict()
 
     def get_changed_orders_information(self, token: int, count: int = 200) -> str:
