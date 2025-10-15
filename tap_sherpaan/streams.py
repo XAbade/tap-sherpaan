@@ -46,7 +46,7 @@ class ChangedItemsInformationStream(PaginatedStream):
     schema = th.PropertiesList(
         # Basic item information
         th.Property("ItemCode", th.StringType),
-        th.Property("Token", th.IntegerType),
+        th.Property("Token", th.StringType),
         th.Property("ItemStatus", th.StringType),
         
         # General item details
@@ -134,7 +134,7 @@ class ChangedStockStream(PaginatedStream):
         th.Property("Stock", th.IntegerType),
         th.Property("Reserved", th.IntegerType),
         th.Property("ItemStatus", th.StringType),
-        th.Property("Token", th.IntegerType),
+        th.Property("Token", th.StringType),
         th.Property("ExpectedDate", th.DateTimeType),
         th.Property("QtyWaitingToReceive", th.IntegerType),
         th.Property("FirstExpectedDate", th.DateTimeType),
@@ -171,7 +171,7 @@ class ChangedSuppliersStream(PaginatedStream):
     response_path = "ClientCodeToken"
     schema = th.PropertiesList(
         th.Property("ClientCode", th.StringType),
-        th.Property("Token", th.IntegerType),
+        th.Property("Token", th.StringType),
         th.Property("Active", th.StringType)
     ).to_dict()
 
@@ -234,7 +234,7 @@ class ChangedItemSuppliersWithDefaultsStream(PaginatedStream):
     schema = th.PropertiesList(
         th.Property("ItemCode", th.StringType),
         th.Property("ClientCode", th.StringType),
-        th.Property("Token", th.IntegerType),
+        th.Property("Token", th.StringType),
         th.Property("DefaultSupplier", th.StringType),
         th.Property("PurchasePrice", th.NumberType),
         th.Property("Currency", th.StringType),
@@ -268,7 +268,7 @@ class ChangedOrdersInformationStream(PaginatedStream):
     response_path = "OrderInformation"
     schema = th.PropertiesList(
         th.Property("OrderCode", th.StringType),
-        th.Property("Token", th.IntegerType),
+        th.Property("Token", th.StringType),
         th.Property("OrderNumber", th.StringType),
         th.Property("OrderDate", th.DateTimeType),
         th.Property("OrderStatus", th.StringType),
@@ -311,7 +311,7 @@ class ChangedPurchasesStream(PaginatedStream):
     schema = th.PropertiesList(
         th.Property("PurchaseCode", th.StringType),
         th.Property("OrderNumber", th.StringType),
-        th.Property("Token", th.IntegerType),
+        th.Property("Token", th.StringType),
         th.Property("PurchaseStatus", th.StringType),
         th.Property("WarehouseCode", th.StringType)
     ).to_dict()
