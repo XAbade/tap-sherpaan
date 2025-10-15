@@ -58,22 +58,22 @@ class ChangedItemsInformationStream(PaginatedStream):
         th.Property("HideOnInvoice", th.BooleanType),
         th.Property("HideOnReturnDocument", th.BooleanType),
         th.Property("PrintLabelsReceivedPurchaseItems", th.BooleanType),
-        th.Property("CostPrice", th.NumberType),
-        th.Property("Price", th.NumberType),
+        th.Property("CostPrice", th.StringType),
+        th.Property("Price", th.StringType),
         th.Property("VatCode", th.StringType),
         th.Property("StockPeriod", th.StringType),
-        th.Property("OrderVolume", th.NumberType),
-        th.Property("OrderVolumeCeilFrom", th.NumberType),
-        th.Property("PriceIncl", th.NumberType),
-        th.Property("Weight", th.NumberType),
-        th.Property("Length", th.NumberType),
-        th.Property("Width", th.NumberType),
-        th.Property("Height", th.NumberType),
+        th.Property("OrderVolume", th.StringType),
+        th.Property("OrderVolumeCeilFrom", th.StringType),
+        th.Property("PriceIncl", th.StringType),
+        th.Property("Weight", th.StringType),
+        th.Property("Length", th.StringType),
+        th.Property("Width", th.StringType),
+        th.Property("Height", th.StringType),
         th.Property("DateAdded", th.DateTimeType),
-        th.Property("AvgPurchasePrice", th.NumberType),
-        th.Property("StockInAllWarehouses", th.IntegerType),
-        th.Property("ReservedInAllWarehouses", th.IntegerType),
-        th.Property("AvailableStockInAllWarehouses", th.IntegerType),
+        th.Property("AvgPurchasePrice", th.StringType),
+        th.Property("StockInAllWarehouses", th.StringType),
+        th.Property("ReservedInAllWarehouses", th.StringType),
+        th.Property("AvailableStockInAllWarehouses", th.StringType),
         # EAN codes (stored as JSON string)
         th.Property("EanCodes", th.StringType),
         # Custom fields (stored as JSON string)
@@ -132,9 +132,9 @@ class ChangedStockStream(PaginatedStream):
         th.Property("FirstExpectedDate", th.DateTimeType),
         th.Property("FirstExpectedQtyWaitingToReceive", th.StringType),
         th.Property("LastModified", th.DateTimeType),
-        th.Property("AvgPurchasePrice", th.NumberType),
+        th.Property("AvgPurchasePrice", th.StringType),
         th.Property("WarehouseCode", th.StringType),
-        th.Property("CostPrice", th.NumberType),
+        th.Property("CostPrice", th.StringType),
         th.Property("Token", th.StringType)
     ).to_dict()
 
@@ -237,11 +237,11 @@ class ChangedItemSuppliersWithDefaultsStream(PaginatedStream):
         th.Property("ClientCode", th.StringType),
         th.Property("Token", th.StringType),
         th.Property("DefaultSupplier", th.StringType),
-        th.Property("PurchasePrice", th.NumberType),
+        th.Property("PurchasePrice", th.StringType),
         th.Property("Currency", th.StringType),
-        th.Property("LeadTime", th.IntegerType),
-        th.Property("MinOrderQty", th.IntegerType),
-        th.Property("MaxOrderQty", th.IntegerType)
+        th.Property("LeadTime", th.StringType),
+        th.Property("MinOrderQty", th.StringType),
+        th.Property("MaxOrderQty", th.StringType)
     ).to_dict()
 
     def get_changed_item_suppliers_with_defaults(self, token: int, count: int = 200) -> str:
@@ -276,7 +276,7 @@ class ChangedOrdersInformationStream(PaginatedStream):
         th.Property("CustomerCode", th.StringType),
         th.Property("CustomerName", th.StringType),
         th.Property("OrderLines", th.ArrayType(th.ObjectType())),
-        th.Property("TotalAmount", th.NumberType),
+        th.Property("TotalAmount", th.StringType),
         th.Property("Currency", th.StringType),
         th.Property("WarehouseCode", th.StringType)
     ).to_dict()
@@ -355,7 +355,7 @@ class PurchaseInfoStream(SherpaStream):
         th.Property("SupplierCode", th.StringType),
         th.Property("SupplierName", th.StringType),
         th.Property("WarehouseCode", th.StringType),
-        th.Property("TotalAmount", th.NumberType),
+        th.Property("TotalAmount", th.StringType),
         th.Property("Currency", th.StringType),
         th.Property("PurchaseLines", th.ArrayType(th.ObjectType()))
     ).to_dict()
