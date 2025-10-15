@@ -80,6 +80,72 @@ class PaginatedStream(SherpaStream):
             The record as-is from the API
         """
         return item
+    
+    def _process_nested_objects(self, item: dict) -> dict:
+        """Dynamically convert complex nested objects to JSON strings.
+        
+        Args:
+            item: The raw item from the API response
+            
+        Returns:
+            Processed item with nested objects converted to JSON strings
+        """
+        import json
+        
+        def clean_xml_artifacts(obj):
+            """Recursively clean XML artifacts from the object."""
+            if isinstance(obj, dict):
+                cleaned = {}
+                for key, value in obj.items():
+                    # Skip XML namespace attributes
+                    if key.startswith('@'):
+                        continue
+                    cleaned[key] = clean_xml_artifacts(value)
+                return cleaned
+            elif isinstance(obj, list):
+                return [clean_xml_artifacts(item) for item in obj]
+            else:
+                return obj
+        
+        def flatten_dict(d, parent_key='', sep='_'):
+            """Recursively flatten nested dictionaries."""
+            items = []
+            for k, v in d.items():
+                new_key = f"{parent_key}{sep}{k}" if parent_key else k
+                if isinstance(v, dict):
+                    # Check if this dict contains only simple key-value pairs (no nested objects/lists)
+                    has_complex_values = any(isinstance(val, (dict, list)) for val in v.values())
+                    
+                    if has_complex_values:
+                        # Complex nested object - convert to JSON string
+                        items.append((new_key, json.dumps(clean_xml_artifacts(v))))
+                    else:
+                        # Simple dict with only primitive values - flatten it
+                        items.extend(flatten_dict(v, new_key, sep=sep).items())
+                elif isinstance(v, list):
+                    # Convert lists to JSON strings
+                    items.append((new_key, json.dumps(clean_xml_artifacts(v))))
+                else:
+                    items.append((new_key, v))
+            return dict(items)
+        
+        # Start with the top-level fields, then dynamically process all nested data
+        processed = {}
+        
+        # Process all fields in the item dynamically
+        for key, value in item.items():
+            if isinstance(value, dict):
+                # If it's a nested object, flatten it
+                flattened = flatten_dict(value)
+                processed.update(flattened)
+            elif isinstance(value, list):
+                # Convert lists to JSON strings
+                processed[key] = json.dumps(clean_xml_artifacts(value))
+            else:
+                # Simple values go directly
+                processed[key] = value
+        
+        return processed
 
     def _get_state(self) -> Dict[str, Any]:
         """Get the current state with additional metadata.
@@ -348,6 +414,7 @@ class PaginatedStream(SherpaStream):
         # Default to 1 if no token found in state
         return "1"
 
+
     def get_records_with_custom_client_method(
         self,
         client_method_name: str,
@@ -363,40 +430,149 @@ class PaginatedStream(SherpaStream):
             Dictionary objects representing records from the API
         """
         token = self.get_starting_replication_key_value()
+        if token is None:
+            token = "1"  # Default starting token
         
-        # Derive result_key from client_method_name (e.g., "get_changed_stock" -> "ChangedStockResult")
-        # Remove "get_" prefix and capitalize each word, then add "Result"
-        method_name = client_method_name.replace("get_", "")
-        result_key = ''.join(word.capitalize() for word in method_name.split('_')) + "Result"
+        # Derive result_key from client_method_name (e.g., "get_changed_stock" -> "ResponseValue")
+        # The actual result is always in "ResponseValue" for these SOAP services
+        result_key = "ResponseValue"
         
-        # Extract items_key from response_path (e.g., "ResponseValue.ItemInformation" -> "ItemInformation")
-        # If response_path doesn't start with "ResponseValue.", assume it's just the items key
-        if self.response_path.startswith("ResponseValue."):
-            items_key = self.response_path.split('.')[-1]
+        # Extract items_key from response_path (e.g., "ItemInformation" -> "ItemInformation")
+        # For ChangedItemsInformation, the actual items are in "ItemCodeTokenItemInformation"
+        if self.name == "changed_items_information":
+            items_key = "ItemCodeTokenItemInformation"
+        elif self.name == "changed_stock":
+            items_key = "ItemStockToken"
+        elif self.name == "changed_suppliers":
+            items_key = "ClientCodeToken"
         else:
-            items_key = self.response_path
+            # Default: extract from response_path
+            if self.response_path.startswith("ResponseValue."):
+                items_key = self.response_path.split('.')[-1]
+            else:
+                items_key = self.response_path
         
         while True:
-            # Get the client method dynamically
-            client_method = getattr(self.client, client_method_name)
+            # Check if this is a stream method (returns XML string) or client method
+            if hasattr(self, client_method_name):
+                # Stream method - get SOAP envelope and call generic client method
+                envelope_method = getattr(self, client_method_name)
+                soap_envelope = envelope_method(token=int(token), **method_params)
+                # Call generic client method to send the envelope
+                # Convert "get_changed_items_information" to "ChangedItemsInformation"
+                service_name = client_method_name.replace("get_", "").replace("_", " ").title().replace(" ", "")
+                response = self.client.call_custom_soap_service(
+                    service_name=service_name,
+                    soap_envelope=soap_envelope
+                )
+            else:
+                # Regular client method
+                client_method = getattr(self.client, client_method_name)
+                response = client_method(token=int(token), **method_params)
             
-            # Call the client method with token and additional params
-            response = client_method(token=int(token), **method_params)
-            
-            if not response or result_key not in response:
+            if not response:
                 self.logger.info(f"[{self.name}] Empty response, stopping pagination")
                 break
                 
-            result = response[result_key]
-            if not result or "ResponseValue" not in result:
-                self.logger.info(f"[{self.name}] No ResponseValue in result, stopping pagination")
+            # Handle raw response from custom SOAP service
+            if "raw_response" in response:
+                # Parse the raw XML response
+                from lxml import etree
+                try:
+                    root = etree.fromstring(response["raw_response"].encode('utf-8'))
+                except Exception as e:
+                    self.logger.error(f"[{self.name}] Failed to parse XML response: {e}")
+                    break
+                
+                # Find the result element
+                result_element = root.find(f".//{{{self.client.client.wsdl.types.prefix_map.get('ns0', 'http://sherpa.sherpaan.nl/')}}}{result_key}")
+                
+                if result_element is None:
+                    self.logger.info(f"[{self.name}] No {result_key} found in response, stopping pagination")
+                    break
+                
+                # Convert XML to JSON using xmltodict for cleaner structure
+                import xmltodict
+                
+                # Convert XML to dict using xmltodict
+                xml_dict = xmltodict.parse(response["raw_response"])
+                
+                # Navigate to the actual data - this will work for all streams
+                soap_body = xml_dict.get("soap:Envelope", {}).get("soap:Body", {})
+                
+                # Find the response data dynamically (works for all stream types)
+                response_data = None
+                for key, value in soap_body.items():
+                    if "Response" in key and isinstance(value, dict):
+                        result_key = key.replace("Response", "Result")
+                        if result_key in value:
+                            response_data = value[result_key]
+                            self.logger.info(f"[{self.name}] Found response_data: {type(response_data)}")
+                            if isinstance(response_data, dict):
+                                self.logger.info(f"[{self.name}] response_data keys: {list(response_data.keys())}")
+                            break
+                
+                if response_data:
+                    response = response_data
+                    # Debug: check what's in ResponseValue
+                    if isinstance(response, dict) and "ResponseValue" in response:
+                        self.logger.info(f"[{self.name}] ResponseValue content type: {type(response['ResponseValue'])}")
+                        if isinstance(response['ResponseValue'], dict):
+                            self.logger.info(f"[{self.name}] ResponseValue keys: {list(response['ResponseValue'].keys())}")
+                        elif isinstance(response['ResponseValue'], list):
+                            self.logger.info(f"[{self.name}] ResponseValue is list with {len(response['ResponseValue'])} items")
+                        else:
+                            self.logger.info(f"[{self.name}] ResponseValue content: {response['ResponseValue']}")
+                else:
+                    self.logger.error(f"[{self.name}] Could not find response data in XML")
+                    break
+            
+            # After xmltodict conversion, we have ResponseValue containing the items
+            # So we should use 'ResponseValue' as the result key
+            if "ResponseValue" in response:
+                result = response["ResponseValue"]
+                self.logger.info(f"[{self.name}] Using ResponseValue as result, type: {type(result)}")
+            else:
+                self.logger.error(f"[{self.name}] No ResponseValue in response, stopping pagination")
+                break
+            if not result:
+                self.logger.info(f"[{self.name}] No data in result, stopping pagination")
                 break
                 
-            response_value = result["ResponseValue"]
-            items = response_value.get(items_key, [])
+            # Now result contains the ResponseValue dict with the items
+            # Extract the items from the result
+            if isinstance(result, dict):
+                # For xmltodict, the items are in result[items_key]
+                if items_key in result:
+                    items = result[items_key]
+                    if not isinstance(items, list):
+                        items = [items]
+                    self.logger.info(f"[{self.name}] Found {len(items)} items in '{items_key}'")
+                else:
+                    # Try to find the items in common patterns
+                    possible_keys = ["ItemCodeTokenItemInformation", "ItemCodeTokenStock", "ItemCodeTokenSupplier"]
+                    items = []
+                    for key in possible_keys:
+                        if key in result:
+                            items = result[key]
+                            if not isinstance(items, list):
+                                items = [items]
+                            self.logger.info(f"[{self.name}] Found {len(items)} items in '{key}'")
+                            break
+                    
+                    if not items:
+                        self.logger.error(f"[{self.name}] Could not find items in result")
+                        break
+            elif isinstance(result, list):
+                # If result is already a list, use it directly
+                items = result
+                self.logger.info(f"[{self.name}] Using result as list with {len(items)} items")
+            else:
+                self.logger.error(f"[{self.name}] Unexpected result type: {type(result)}")
+                break
             
             if not items:
-                self.logger.info(f"[{self.name}] No items in response, stopping pagination")
+                self.logger.info(f"[{self.name}] No items found, stopping pagination")
                 break
                 
             # Ensure items is a list
@@ -405,16 +581,27 @@ class PaginatedStream(SherpaStream):
                 
             # Process items and find highest token
             highest_token = int(token)
-            response_time = result.get("ResponseTime", 0)
+            # Get response_time from the original response if it's a dict
+            if isinstance(response, dict) and "ResponseTime" in response:
+                response_time = response["ResponseTime"]
+            else:
+                response_time = 0
             
             for item in items:
                 # Get token before mapping record
-                item_token = int(item.get("Token", 0))
+                if isinstance(item, dict):
+                    item_token = int(item.get("Token", 0))
+                else:
+                    self.logger.error(f"[{self.name}] Item is not a dict: {type(item)} - {item}")
+                    continue
                 if item_token > highest_token:
                     highest_token = item_token
 
-                # Map and yield record
-                record = self.map_record(item)
+                # Convert complex nested objects to JSON strings for array columns
+                processed_item = self._process_nested_objects(item)
+                
+                # Map and yield record - automatic field mapping will handle everything
+                record = self.map_record(processed_item)
                 if record:
                     record["response_time"] = response_time
                     yield record
@@ -463,4 +650,4 @@ class PaginatedStream(SherpaStream):
             service_name=service_name,
             context=context,
             **service_params,
-        ) 
+        )
