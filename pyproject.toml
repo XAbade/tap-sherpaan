@@ -1,23 +1,21 @@
-[build-system]
-requires = ["hatchling>=1,<2"]
-build-backend = "hatchling.build"
-
 [project]
 name = "tap-sherpaan"
-version = "0.1.0"
+version = "0.0.4"
 description = "Singer tap for Sherpa, built with the Meltano Singer SDK."
-readme = "README.md"
-authors = [{ name = "Eduardo Sequeira", email = "eduardosequeira@optiply.nl" }]
 requires-python = ">=3.9"
 dependencies = [
-    "singer-sdk>=0.33.0",
+    "singer-sdk~=0.46.4",
     "zeep>=4.2.1",
-    "tenacity>=9.1.2",
-    "click>=8.1.0"
+    "tenacity>=9.1.2,<10.0.0",
+    "xmltodict>=1.0.2",
 ]
 
 [project.scripts]
-tap-sherpaan = "tap_sherpaan.tap:TapSherpaan.cli"
+tap-sherpaan = 'tap_sherpaan.tap:TapSherpaan.cli'
 
 [tool.hatch.build.targets.wheel]
 packages = ["tap_sherpaan"]
+
+[build-system]
+requires = ["hatchling>=1,<2"]
+build-backend = "hatchling.build"
