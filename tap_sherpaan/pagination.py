@@ -23,7 +23,7 @@ class PaginationConfig:
 
     def __init__(
         self,
-        chunk_size: int = 200,
+        page_size: int = 200,
         max_retries: int = 3,
         retry_wait_min: int = 4,
         retry_wait_max: int = 10,
@@ -32,13 +32,13 @@ class PaginationConfig:
         """Initialize pagination config.
 
         Args:
-            chunk_size: Number of records to process in each chunk
+            page_size: Number of records to process in each page
             max_retries: Maximum number of retry attempts
             retry_wait_min: Minimum wait time between retries in seconds
             retry_wait_max: Maximum wait time between retries in seconds
             mode: Pagination mode to use (TOKEN, CURSOR, or OFFSET)
         """
-        self.chunk_size = chunk_size
+        self.page_size = page_size
         self.max_retries = max_retries
         self.retry_wait_min = retry_wait_min
         self.retry_wait_max = retry_wait_max
@@ -58,7 +58,7 @@ class PaginatedStream(SherpaStream):
         super().__init__(*args, **kwargs)
         self._total_records = 0
         self._pagination_config = PaginationConfig(
-            chunk_size=self.config.get("chunk_size", 200),
+            page_size=self.config.get("page_size", 200),
             max_retries=self.config.get("max_retries", 3),
             retry_wait_min=self.config.get("retry_wait_min", 4),
             retry_wait_max=self.config.get("retry_wait_max", 10),
@@ -408,7 +408,7 @@ class PaginatedStream(SherpaStream):
             Dictionary objects representing records from the service
         """
         offset = 0
-        limit = self._pagination_config.chunk_size
+        limit = self._pagination_config.page_size
         
         while True:
             # Make the request with retry logic
@@ -668,17 +668,9 @@ class PaginatedStream(SherpaStream):
             "securityCode": self.config["security_code"],
             "token": token,
         }
-        # All streams use chunk_size from config
-        if self.name in [
-            "changed_orders",
-            "changed_parcels", 
-            "changed_purchases",
-            "changed_suppliers",
-            "changed_item_suppliers",
-        ]:
-            service_params["count"] = str(self._pagination_config.chunk_size)
-        elif self.name == "changed_stock":
-            service_params["maxResult"] = str(self._pagination_config.chunk_size)
+        # All streams use page_size from config
+        service_params["count"] = str(self._pagination_config.page_size)
+        service_params["maxResult"] = str(self._pagination_config.page_size)
         # For changed_items, do not add count or maxResult
         # Derive service name from stream name (e.g., "changed_suppliers" -> "ChangedSuppliers")
         service_name = ''.join(word.capitalize() for word in self.name.split('_'))
