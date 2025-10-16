@@ -348,6 +348,8 @@ class ChangedPurchasesStream(PaginatedStream):
     primary_keys = ["PurchaseCode"]
     replication_key = "Token"
     response_path = "PurchaseCodeToken"
+    # Class variable to store unique group IDs
+    _unique_order_numbers = set()
     schema = th.PropertiesList(
         th.Property("PurchaseCode", th.StringType),
         th.Property("OrderNumber", th.StringType),
@@ -369,40 +371,71 @@ class ChangedPurchasesStream(PaginatedStream):
 </soap12:Envelope>"""
 
     def get_records(self, context: Optional[dict] = None) -> Iterable[dict]:
-        yield from self.get_records_with_custom_client_method(
-            "get_changed_purchases"
-        )
+        for record in self.get_records_with_custom_client_method("get_changed_purchases"):
+            # Only yield records that have OrderNumber (discard all others as useless)
+            if record.get("OrderNumber"):
+                yield record
+            # Records without OrderNumber are completely discarded - not useful
+
+    # def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+    #     """Return a context dictionary for child streams."""
+    #     # Only create child context if OrderNumber exists
+    #     if not record.get("OrderNumber"):
+    #         # Return empty context to skip child stream processing
+    #         return {}
+    #     return {
+    #         "purchase_number": record["OrderNumber"],
+    #     }
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
-        """Return a context dictionary for child streams."""
-        return {
-            "purchase_number": record["OrderNumber"],
-        }
+        """Return context for child streams."""
+        purchase_number = record.get("OrderNumber")
+        if not purchase_number:
+            return None
+        
+        # Only return context for unique order numbers to avoid duplicate child stream calls
+        if purchase_number in self._unique_order_numbers:
+            return None
+        
+        self._unique_order_numbers.add(purchase_number)
+        return {"purchase_number": purchase_number}
+
+    def _sync_children(self, child_context: dict) -> None:
+        if child_context is not None:
+            super()._sync_children(child_context)
 
 
-class PurchaseInfoStream(SherpaStream):
+
+class PurchaseInfoStream(PaginatedStream):
     # Get purchase info for each purchase
     name = "purchase_info"
     parent_stream_type = ChangedPurchasesStream
-    primary_keys = ["PurchaseNumber"]
+    primary_keys = ["PurchaseOrderNumber"]
+    response_path = "ResponseValue"
     schema = th.PropertiesList(
-        th.Property("PurchaseNumber", th.StringType),
-        th.Property("PurchaseCode", th.StringType),
-        th.Property("OrderNumber", th.StringType),
-        th.Property("PurchaseDate", th.DateTimeType),
-        th.Property("PurchaseStatus", th.StringType),
         th.Property("SupplierCode", th.StringType),
-        th.Property("SupplierName", th.StringType),
+        th.Property("PurchaseOrderNumber", th.StringType),
+        th.Property("PurchaseDate", th.StringType),
+        th.Property("PurchaseStatus", th.DateTimeType),
+        th.Property("Reference", th.StringType),
         th.Property("WarehouseCode", th.StringType),
-        th.Property("TotalAmount", th.StringType),
-        th.Property("Currency", th.StringType),
-        th.Property("PurchaseLines", th.ArrayType(th.ObjectType()))
+        th.Property("PurchaseLine", th.StringType)
     ).to_dict()
+
+    def get_purchase_info(self, token: int = 0, **kwargs) -> str:
+        return f"""<?xml version="1.0" encoding="utf-8"?>
+<soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+  <soap12:Body>
+    <tns:PurchaseInfo xmlns:tns="http://sherpa.sherpaan.nl/">
+      <tns:securityCode>{self.config["security_code"]}</tns:securityCode>
+      <tns:purchaseNumber>{self._current_purchase_number}</tns:purchaseNumber>
+    </tns:PurchaseInfo>
+  </soap12:Body>
+</soap12:Envelope>"""
 
     def get_records(self, context: Optional[dict] = None) -> Iterable[dict]:
         """Get purchase info using the purchase_number from parent context."""
-        purchase_number = context["purchase_number"]
-        # Get detailed purchase info for this purchase number
-        purchase_info = self.client.get_purchase_info(purchase_number)
-        # Return the response directly - let the schema handle the structure
-        yield purchase_info
+        # Store purchase_number in instance variable so get_purchase_info can access it
+        self._current_purchase_number = context["purchase_number"]
+        # Use the same approach as other streams - this will automatically process the response
+        yield from self.get_records_with_custom_client_method("get_purchase_info")
