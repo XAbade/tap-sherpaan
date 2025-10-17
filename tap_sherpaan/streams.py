@@ -195,7 +195,7 @@ class SupplierInfoStream(PaginatedStream):
     # Get supplier info for each supplier
     name = "supplier_info"
     parent_stream_type = ChangedSuppliersStream
-    primary_keys = ["ClientCode"]
+    primary_keys = ["SupplierCode"]
     response_path = "ResponseValue"
     schema = th.PropertiesList(
         th.Property("SupplierCode", th.StringType),
@@ -375,17 +375,6 @@ class ChangedPurchasesStream(PaginatedStream):
             # Only yield records that have OrderNumber (discard all others as useless)
             if record.get("OrderNumber"):
                 yield record
-            # Records without OrderNumber are completely discarded - not useful
-
-    # def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
-    #     """Return a context dictionary for child streams."""
-    #     # Only create child context if OrderNumber exists
-    #     if not record.get("OrderNumber"):
-    #         # Return empty context to skip child stream processing
-    #         return {}
-    #     return {
-    #         "purchase_number": record["OrderNumber"],
-    #     }
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
         """Return context for child streams."""
