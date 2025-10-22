@@ -1,6 +1,5 @@
 """Pagination utilities for tap-sherpa."""
 
-from enum import Enum
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union, Generator
 import time
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -8,41 +7,6 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from singer_sdk import typing as th
 from tap_sherpaan.streams import SherpaStream
 from tap_sherpaan.client import SherpaClient
-
-
-class PaginationMode(str, Enum):
-    """Supported pagination modes."""
-
-    TOKEN = "token"
-    CURSOR = "cursor"
-    OFFSET = "offset"
-
-
-class PaginationConfig:
-    """Configuration for pagination."""
-
-    def __init__(
-        self,
-        page_size: int = 200,
-        max_retries: int = 3,
-        retry_wait_min: int = 4,
-        retry_wait_max: int = 10,
-        mode: PaginationMode = PaginationMode.TOKEN,
-    ):
-        """Initialize pagination config.
-
-        Args:
-            page_size: Number of records to process in each page
-            max_retries: Maximum number of retry attempts
-            retry_wait_min: Minimum wait time between retries in seconds
-            retry_wait_max: Maximum wait time between retries in seconds
-            mode: Pagination mode to use (TOKEN, CURSOR, or OFFSET)
-        """
-        self.page_size = page_size
-        self.max_retries = max_retries
-        self.retry_wait_min = retry_wait_min
-        self.retry_wait_max = retry_wait_max
-        self.mode = mode
 
 
 class PaginatedStream(SherpaStream):
@@ -57,13 +21,7 @@ class PaginatedStream(SherpaStream):
         """
         super().__init__(*args, **kwargs)
         self._total_records = 0
-        self._pagination_config = PaginationConfig(
-            page_size=self.config.get("page_size", 200),
-            max_retries=self.config.get("max_retries", 3),
-            retry_wait_min=self.config.get("retry_wait_min", 4),
-            retry_wait_max=self.config.get("retry_wait_max", 10),
-            mode=PaginationMode.TOKEN,  # All streams use token-based pagination
-        )
+        self._page_size = self.config.get("page_size", 200)
         # Initialize SherpaClient for SOAP requests
         self.client = SherpaClient(
             shop_id=self.config["shop_id"],
@@ -254,7 +212,9 @@ class PaginatedStream(SherpaStream):
         Yields:
             Dictionary objects representing records from the service
         """
-        if self._pagination_config.mode == PaginationMode.TOKEN:
+        # Check if this stream uses pagination
+        if getattr(self, 'paginate', True):  # Default to True for backward compatibility
+            # Use token-based pagination
             yield from self.get_records_with_token(
                 service_name=service_name,
                 token_param_name="token",
@@ -262,18 +222,42 @@ class PaginatedStream(SherpaStream):
                 context=context,
                 **service_params,
             )
-        elif self._pagination_config.mode == PaginationMode.CURSOR:
-            yield from self.get_records_with_cursor(
+        else:
+            # Use simple non-paginated request
+            yield from self.get_records_without_pagination(
                 service_name=service_name,
                 context=context,
                 **service_params,
             )
-        else:  # OFFSET
-            yield from self.get_records_with_offset(
-                service_name=service_name,
-                context=context,
-                **service_params,
-            )
+
+    def get_records_without_pagination(
+        self,
+        service_name: str,
+        context: Optional[dict] = None,
+        **service_params: Any,
+    ) -> Iterable[Dict[str, Any]]:
+        """Get records without pagination (single request).
+
+        Args:
+            service_name: Name of the service to call
+            context: Stream context
+            **service_params: Additional parameters for the service call
+
+        Yields:
+            Dictionary objects representing records from the service
+        """
+        # Make a single request without pagination
+        response = self._make_request(service_name, **service_params)
+        
+        if not response:
+            self.logger.warning(f"[{self.name}] No response received")
+            return
+
+        # Extract records from response
+        records = self._extract_records_from_response(response)
+        
+        for record in records:
+            yield record
 
     def get_records_with_token(
         self,
@@ -408,7 +392,7 @@ class PaginatedStream(SherpaStream):
             Dictionary objects representing records from the service
         """
         offset = 0
-        limit = self._pagination_config.page_size
+        limit = self._page_size
         
         while True:
             # Make the request with retry logic
@@ -668,10 +652,12 @@ class PaginatedStream(SherpaStream):
             "securityCode": self.config["security_code"],
             "token": token,
         }
-        # All streams use page_size from config
-        service_params["count"] = str(self._pagination_config.page_size)
-        service_params["maxResult"] = str(self._pagination_config.page_size)
-        # For changed_items, do not add count or maxResult
+        
+        # Only add pagination parameters for streams that use pagination
+        if getattr(self, 'paginate', True):  # Default to True for backward compatibility
+            service_params["count"] = str(self._page_size)
+            service_params["maxResult"] = str(self._page_size)
+        
         # Derive service name from stream name (e.g., "changed_suppliers" -> "ChangedSuppliers")
         service_name = ''.join(word.capitalize() for word in self.name.split('_'))
         
