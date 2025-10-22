@@ -34,7 +34,7 @@ class SherpaStream(Stream):
 
 
 # Import PaginatedStream after SherpaStream is defined to avoid circular imports
-from tap_sherpaan.pagination import PaginatedStream, PaginationMode
+from tap_sherpaan.pagination import PaginatedStream
 
 
 class ChangedItemsInformationStream(PaginatedStream):
@@ -195,7 +195,7 @@ class SupplierInfoStream(PaginatedStream):
     # Get supplier info for each supplier
     name = "supplier_info"
     parent_stream_type = ChangedSuppliersStream
-    primary_keys = ["SupplierCode"]
+    primary_keys = ["ClientCode"]
     response_path = "ResponseValue"
     paginate = False
     schema = th.PropertiesList(
@@ -376,6 +376,17 @@ class ChangedPurchasesStream(PaginatedStream):
             # Only yield records that have OrderNumber (discard all others as useless)
             if record.get("OrderNumber"):
                 yield record
+            # Records without OrderNumber are completely discarded - not useful
+
+    # def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+    #     """Return a context dictionary for child streams."""
+    #     # Only create child context if OrderNumber exists
+    #     if not record.get("OrderNumber"):
+    #         # Return empty context to skip child stream processing
+    #         return {}
+    #     return {
+    #         "purchase_number": record["OrderNumber"],
+    #     }
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
         """Return context for child streams."""
