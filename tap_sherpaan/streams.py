@@ -197,6 +197,7 @@ class SupplierInfoStream(PaginatedStream):
     parent_stream_type = ChangedSuppliersStream
     primary_keys = ["SupplierCode"]
     response_path = "ResponseValue"
+    paginate = False
     schema = th.PropertiesList(
         th.Property("SupplierCode", th.StringType),
         th.Property("Token", th.StringType),
@@ -401,6 +402,7 @@ class PurchaseInfoStream(PaginatedStream):
     parent_stream_type = ChangedPurchasesStream
     primary_keys = ["PurchaseOrderNumber"]
     response_path = "ResponseValue"
+    paginate = False
     schema = th.PropertiesList(
         th.Property("SupplierCode", th.StringType),
         th.Property("PurchaseOrderNumber", th.StringType),
