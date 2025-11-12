@@ -41,7 +41,8 @@ class SherpaClient:
             timeout: Request timeout in seconds
         """
         self.shop_id = shop_id
-        self.wsdl_url = f"https://sherpaservices-prd.sherpacloud.eu/{shop_id}/Sherpa.asmx?wsdl"
+        self.wsdl_url = f"https://sherpaservices-tst.sherpacloud.eu/{shop_id}/Sherpa.asmx?wsdl"
+        #self.wsdl_url = f"https://sherpaservices-prd.sherpacloud.eu/{shop_id}/Sherpa.asmx?wsdl"
         session = Session()
         session.headers.update({
             "Content-Type": "text/xml; charset=utf-8",
