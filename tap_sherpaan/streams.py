@@ -181,6 +181,7 @@ class SupplierInfoStream(SherpaStream):
     name = "supplier_info"
     parent_stream_type = ChangedSuppliersStream
     primary_keys = ["ClientCode"]
+    paginate = False
     schema = th.PropertiesList(
         th.Property("SupplierCode", th.StringType),
         th.Property("Token", th.StringType),
@@ -410,6 +411,7 @@ class PurchaseInfoStream(SherpaStream):
     name = "purchase_info"
     parent_stream_type = ChangedPurchasesStream
     primary_keys = ["PurchaseOrderNumber"]
+    paginate = False
     schema = th.PropertiesList(
         th.Property("SupplierCode", th.StringType),
         th.Property("PurchaseOrderNumber", th.StringType),
