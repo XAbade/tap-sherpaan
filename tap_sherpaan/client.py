@@ -165,12 +165,13 @@ class SherpaStream(Stream):
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10)
     )
-    def _make_soap_request(self, service_name: str, soap_envelope: str) -> dict:
+    def _make_soap_request(self, service_name: str, soap_envelope: str, token: Optional[int] = None) -> dict:
         """Make a SOAP request with retry logic.
         
         Args:
             service_name: Name of the SOAP service
             soap_envelope: SOAP envelope XML string
+            token: Optional token value for logging
             
         Returns:
             Parsed response dictionary
@@ -179,7 +180,7 @@ class SherpaStream(Stream):
             response = self.client.call_custom_soap_service(service_name, soap_envelope)
             return self._parse_soap_response(response["raw_response"], service_name)
         except Exception as e:
-            self.logger.error(f"Error making SOAP request: {str(e)}")
+            self.logger.error(f"[{self.name}] Error making SOAP request to {service_name}: {str(e)}")
             raise
 
     def _parse_soap_response(self, xml_response: str, service_name: str) -> dict:
@@ -246,10 +247,12 @@ class SherpaStream(Stream):
 
         while True:
             # Generate SOAP envelope
-            soap_envelope = get_soap_envelope(token=int(token), count=page_size)
+            current_token = int(token)
+            soap_envelope = get_soap_envelope(token=current_token, count=page_size)
             
-            # Make request
-            response = self._make_soap_request(service_name, soap_envelope)
+            # Make request with token logging
+            self.logger.info(f"[{self.name}] Requesting {service_name} with token: {current_token}, page_size: {page_size}")
+            response = self._make_soap_request(service_name, soap_envelope, token=current_token)
             
             # Extract items from response
             items = response.get(items_key, [])
