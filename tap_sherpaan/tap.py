@@ -1,13 +1,18 @@
 """Sherpa tap class."""
+
 from __future__ import annotations
-from typing import Optional, Iterable, Dict, Any, List
-from singer_sdk import Tap
-from singer_sdk import typing as th  # JSON schema typing helpers
-from tap_sherpaan import streams
+
+from typing import List
 import click
+from singer_sdk import Tap
+from singer_sdk import typing as th
+
+from tap_sherpaan import streams
+
 
 class TapSherpaan(Tap):
     """Sherpa tap class."""
+    
     name = "tap-sherpaan"
 
     config_jsonschema = th.PropertiesList(
@@ -53,41 +58,20 @@ class TapSherpaan(Tap):
             description="Maximum wait time between retries in seconds",
             default=10,
         ),
-        th.Property(
-            "stream_tokens",
-            th.ObjectType(
-                th.Property("changed_items_information", th.IntegerType),
-                th.Property("changed_stock", th.IntegerType),
-                th.Property("changed_suppliers", th.IntegerType),
-                th.Property("changed_item_suppliers_with_defaults", th.IntegerType),
-                th.Property("changed_orders_information", th.IntegerType),
-                th.Property("changed_purchases", th.IntegerType)
-            ),
-            description="Initial tokens for each stream",
-        ),
     ).to_dict()
-
 
     @classmethod
     def cli(cls, *args, **kwargs):
         """Handle command line execution."""
-        # Add a click option to accept and ignore the --properties argument
         @click.option("--properties", help="DEPRECATED. Path to a properties JSON file.")
         def cli_func(*args, **kwargs):
-            # Pop the 'properties' kwarg to avoid passing it to the parent class
             kwargs.pop("properties", None)
-            # Call the parent class's CLI method with the remaining arguments
             super(TapSherpaan, cls).cli(*args, **kwargs)
 
         cli_func(*args, **kwargs)
 
-
     def discover_streams(self) -> List[streams.SherpaStream]:
-        """Return a list of discovered streams.
-
-        Returns:
-            A list of discovered streams.
-        """
+        """Return a list of discovered streams."""
         return [
             streams.ChangedItemsInformationStream(self),
             streams.ChangedStockStream(self),
