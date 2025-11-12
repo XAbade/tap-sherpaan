@@ -41,8 +41,7 @@ class SherpaClient:
             timeout: Request timeout in seconds
         """
         self.shop_id = shop_id
-        self.wsdl_url = f"https://sherpaservices-tst.sherpacloud.eu/{shop_id}/Sherpa.asmx?wsdl"
-        #self.wsdl_url = f"https://sherpaservices-prd.sherpacloud.eu/{shop_id}/Sherpa.asmx?wsdl"
+        self.wsdl_url = f"https://sherpaservices-prd.sherpacloud.eu/{shop_id}/Sherpa.asmx?wsdl"
         session = Session()
         session.headers.update({
             "Content-Type": "text/xml; charset=utf-8",
@@ -90,6 +89,9 @@ class SherpaClient:
 
 class SherpaStream(Stream):
     """Base stream class for Sherpa streams with pagination support."""
+    
+    # Default to pagination enabled
+    paginate = True
 
     def __init__(self, *args, **kwargs):
         """Initialize the stream."""
@@ -240,11 +242,17 @@ class SherpaStream(Stream):
         Yields:
             Records from the API
         """
-        token = self.get_starting_replication_key_value(context)
-        if not token or token == "0":
-            token = "1"
-        
-        self.logger.info(f"[{self.name}] Starting sync with token: {token}")
+        # Check if pagination is disabled for this stream
+        if not self.paginate:
+            # Non-paginated stream - make single request with token=0
+            token = "0"
+            self.logger.info(f"[{self.name}] Making single request (no pagination)")
+        else:
+            # Paginated stream - get token from state
+            token = self.get_starting_replication_key_value(context)
+            if not token or token == "0":
+                token = "1"
+            self.logger.info(f"[{self.name}] Starting sync with token: {token}")
 
         while True:
             # Generate SOAP envelope
@@ -301,15 +309,19 @@ class SherpaStream(Stream):
                     record["response_time"] = response_time
                     yield record
 
-            # Update token for next request
-            if highest_token > int(token):
-                next_token = str(highest_token)
-                self.logger.info(f"[{self.name}] Token progression: {token} -> {next_token} (batch size: {len(items)})")
-                token = next_token
-                self._increment_stream_state(token)
-                self._write_state_message()
+            # Update token for next request (only if pagination is enabled)
+            if self.paginate:
+                if highest_token > int(token):
+                    next_token = str(highest_token)
+                    self.logger.info(f"[{self.name}] Token progression: {token} -> {next_token} (batch size: {len(items)})")
+                    token = next_token
+                    self._increment_stream_state(token)
+                    self._write_state_message()
+                else:
+                    self.logger.info(f"[{self.name}] No valid tokens found in response, stopping pagination")
+                    break
             else:
-                self.logger.info(f"[{self.name}] No valid tokens found in response, stopping pagination")
+                # Non-paginated stream - only one request, break after processing
                 break
 
     def get_records(self, context: Optional[dict] = None) -> Iterable[dict]:
