@@ -112,6 +112,10 @@ class SherpaStream(Stream):
         def clean_xml_artifacts(obj):
             """Recursively clean XML artifacts from the object."""
             if isinstance(obj, dict):
+                # Check if this is an xsi:nil marker and convert to None
+                # A pure nil marker only contains @xsi:nil with value "true"
+                if len(obj) == 1 and "@xsi:nil" in obj and obj.get("@xsi:nil") == "true":
+                    return None
                 if not obj:
                     return None
                 return {k: clean_xml_artifacts(v) for k, v in obj.items()}
