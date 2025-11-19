@@ -17,6 +17,13 @@ class TapSherpaan(Tap):
 
     config_jsonschema = th.PropertiesList(
         th.Property(
+            "base_url",
+            th.StringType,
+            required=False,
+            default="https://sherpaservices-prd.sherpacloud.eu",
+            description="Base URL for the Sherpa SOAP service (override for non-production environments)",
+        ),
+        th.Property(
             "shop_id",
             th.StringType,
             required=True,
