@@ -41,8 +41,18 @@ class SherpaClient:
             timeout: Request timeout in seconds
         """
         self.shop_id = shop_id
-        self.wsdl_url = f"https://sherpaservices-tst.sherpacloud.eu/{shop_id}/Sherpa.asmx?wsdl"
-        #self.wsdl_url = f"https://sherpaservices-prd.sherpacloud.eu/{shop_id}/Sherpa.asmx?wsdl"
+
+        # Determine base URL:
+        # - If tap config provides "base_url", use that.
+        # - Otherwise default to the production endpoint.
+        base_url = (getattr(tap, "config", {}) or {}).get(
+            "base_url",
+            "https://sherpaservices-prd.sherpacloud.eu",
+        )
+        # Normalise to avoid trailing slash issues
+        self.base_url = base_url.rstrip("/")
+
+        self.wsdl_url = f"{self.base_url}/{shop_id}/Sherpa.asmx?wsdl"
         session = Session()
         session.headers.update({
             "Content-Type": "text/xml; charset=utf-8",
