@@ -108,29 +108,97 @@ class SherpaStream(Stream):
         return item
 
     def _process_nested_objects(self, item: dict) -> dict:
-        """Convert complex nested objects to JSON strings."""
+        """Dynamically convert nested XML objects to flattened fields / JSON strings.
+
+        This mirrors the behaviour of the previous tap implementation:
+        - Simple fields under the ``General`` section are flattened to top-level keys
+          (so they line up with the JSON schema fields like ``ItemType``, ``Description``).
+        - Complex nested objects and lists are serialized to JSON strings.
+        - XML artefacts and pure ``xsi:nil`` markers become ``None``.
+        """
+
         def clean_xml_artifacts(obj):
             """Recursively clean XML artifacts from the object."""
             if isinstance(obj, dict):
-                # Check if this is an xsi:nil marker and convert to None
-                # A pure nil marker only contains @xsi:nil with value "true"
-                if len(obj) == 1 and "@xsi:nil" in obj and obj.get("@xsi:nil") == "true":
-                    return None
+                # If it's an empty dict, return null
                 if not obj:
                     return None
-                return {k: clean_xml_artifacts(v) for k, v in obj.items()}
+                cleaned = {}
+                for key, value in obj.items():
+                    # Skip XML namespace/attribute keys (e.g. '@xsi:nil')
+                    if key.startswith("@"):
+                        continue
+                    cleaned_value = clean_xml_artifacts(value)
+                    # Only add non-null values to avoid empty dicts
+                    if cleaned_value is not None:
+                        cleaned[key] = cleaned_value
+                # If all values were null or XML artefacts, return null
+                if not cleaned:
+                    return None
+                return cleaned
             elif isinstance(obj, list):
-                return [clean_xml_artifacts(v) for v in obj if v is not None]
+                return [clean_xml_artifacts(v) for v in obj]
             else:
                 return obj
 
-        processed = clean_xml_artifacts(item)
-        
-        # Convert nested dicts to JSON strings for complex fields
-        for key, value in processed.items():
-            if isinstance(value, (dict, list)) and value:
-                processed[key] = json.dumps(value)
-        
+        def flatten_dict(d: dict, parent_key: str = "", sep: str = "_") -> dict:
+            """Recursively flatten nested dictionaries.
+
+            - Fields under ``General`` are flattened without the ``General`` prefix.
+            - Complex nested dicts and lists are converted to JSON strings.
+            """
+            items: list[tuple[str, Any]] = []
+            for k, v in d.items():
+                # Skip XML namespace attributes
+                if k.startswith("@"):
+                    continue
+
+                # For General section, don't add prefix to match schema field names
+                if parent_key == "General":
+                    new_key = k
+                else:
+                    new_key = f"{parent_key}{sep}{k}" if parent_key else k
+
+                if isinstance(v, dict):
+                    # Detect dictionaries that only contain XML attributes (e.g. xsi:nil)
+                    non_attr_keys = [key for key in v.keys() if not key.startswith("@")]
+                    if not non_attr_keys:
+                        # Pure xsi:nil-style field → None
+                        items.append((new_key, None))
+                    elif k == "General":
+                        # Always fully flatten the General section
+                        flattened = flatten_dict(v, new_key, sep)
+                        items.extend(flattened.items())
+                    else:
+                        # Decide whether to flatten or JSON-encode this dict
+                        has_nested_objects = any(
+                            isinstance(val, (dict, list)) for val in v.values()
+                        )
+                        if has_nested_objects:
+                            items.append((new_key, json.dumps(clean_xml_artifacts(v))))
+                        else:
+                            flattened = flatten_dict(v, new_key, sep)
+                            items.extend(flattened.items())
+                elif isinstance(v, list):
+                    # Lists always become JSON strings
+                    items.append((new_key, json.dumps(clean_xml_artifacts(v))))
+                else:
+                    items.append((new_key, v)
+                    )
+            return dict(items)
+
+        # Start with the top-level fields, then dynamically process nested data
+        processed: Dict[str, Any] = {}
+
+        for key, value in item.items():
+            if isinstance(value, dict):
+                flattened = flatten_dict(value)
+                processed.update(flattened)
+            elif isinstance(value, list):
+                processed[key] = json.dumps(clean_xml_artifacts(value))
+            else:
+                processed[key] = value
+
         return processed
 
     def get_starting_replication_key_value(self, context: Optional[dict] = None) -> Optional[str]:
